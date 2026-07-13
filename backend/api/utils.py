@@ -89,3 +89,8 @@ def generate_otc_sale_number():
     prefix = f"OTC-{today.strftime('%Y%m%d')}"
     count = OTCSale.all_objects.filter(created_at__date=today).count() + 1
     return f"{prefix}-{count:04d}"
+
+def generate_admission_number():
+    import uuid
+    from django.utils import timezone
+    return f"ADM-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
