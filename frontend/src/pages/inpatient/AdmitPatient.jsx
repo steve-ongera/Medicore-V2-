@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  searchPatient,
+  getPatients,
   getAvailableBeds,
   getWards,
   getUsers,
@@ -76,8 +76,8 @@ export default function AdmitPatient() {
     setSearching(true);
     setError("");
     try {
-      const data = await searchPatient(patientQuery);
-      setPatientResults(data.patients || []);
+      const data = await getPatients({ search: patientQuery });
+      setPatientResults(data.results ?? data);
     } catch (err) {
       setError(err.message);
     } finally {
