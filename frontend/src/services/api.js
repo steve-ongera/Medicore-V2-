@@ -270,6 +270,47 @@ export const getReports = (type, params) => unwrap(client.get(`/reports/${qs({ t
 export const getAuditLogs = (params) => unwrap(client.get(`/audit-logs/${qs(params)}`));
 export const getAllTransactions = (params) => unwrap(client.get(`/transactions/${qs(params)}`));
 
+// ===========================================================================
+// INPATIENT / WARDS
+// ===========================================================================
+export const getWards = (params) => unwrap(client.get(`/wards/${qs(params)}`));
+export const getWardOccupancy = () => unwrap(client.get("/wards/occupancy/"));
+export const createWard = (payload) => unwrap(client.post("/wards/", payload));
+export const updateWard = (id, payload) => unwrap(client.patch(`/wards/${id}/`, payload));
+
+export const getBeds = (params) => unwrap(client.get(`/beds/${qs(params)}`));
+export const getAvailableBeds = (wardId) => unwrap(client.get(`/beds/available/${qs({ ward: wardId })}`));
+export const createBed = (payload) => unwrap(client.post("/beds/", payload));
+export const updateBed = (id, payload) => unwrap(client.patch(`/beds/${id}/`, payload));
+
+export const getAdmissions = (params) => unwrap(client.get(`/admissions/${qs(params)}`));
+export const getActiveAdmissions = () => unwrap(client.get("/admissions/active/"));
+export const getAdmission = (id) => unwrap(client.get(`/admissions/${id}/`));
+export const admitPatient = (payload) => unwrap(client.post("/admissions/", payload));
+export const dischargePatient = (id, payload) => unwrap(client.post(`/admissions/${id}/discharge/`, payload));
+export const transferBed = (id, payload) => unwrap(client.post(`/admissions/${id}/transfer-bed/`, payload));
+
+export const getBedTransfers = (params) => unwrap(client.get(`/bed-transfers/${qs(params)}`));
+
+export const getWardRounds = (params) => unwrap(client.get(`/ward-rounds/${qs(params)}`));
+export const createWardRound = (payload) => unwrap(client.post("/ward-rounds/", payload));
+
+export const getNursingNotes = (params) => unwrap(client.get(`/nursing-notes/${qs(params)}`));
+export const createNursingNote = (payload) => unwrap(client.post("/nursing-notes/", payload));
+
+export const getInpatientVitals = (params) => unwrap(client.get(`/inpatient-vitals/${qs(params)}`));
+export const saveInpatientVitals = (payload) => unwrap(client.post("/inpatient-vitals/", payload));
+
+export const getMedicationOrders = (params) => unwrap(client.get(`/medication-orders/${qs(params)}`));
+export const createMedicationOrder = (payload) => unwrap(client.post("/medication-orders/", payload));
+export const discontinueMedicationOrder = (id) => unwrap(client.post(`/medication-orders/${id}/discontinue/`));
+
+export const getMedicationAdministrations = (params) => unwrap(client.get(`/medication-administrations/${qs(params)}`));
+export const recordMedicationAdministration = (payload) => unwrap(client.post("/medication-administrations/", payload));
+
+export const getBedCharges = (params) => unwrap(client.get(`/bed-charges/${qs(params)}`));
+export const generateTodaysBedCharges = () => unwrap(client.post("/bed-charges/generate-today/"));
+
 // ---------------------------------------------------------------------------
 // Helper: build multipart FormData for endpoints that accept file uploads
 // ---------------------------------------------------------------------------

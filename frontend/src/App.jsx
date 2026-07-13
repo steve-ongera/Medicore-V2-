@@ -48,6 +48,13 @@ import Departments from "./pages/settings/Departments.jsx";
 import AuditLog from "./pages/settings/AuditLog.jsx";
 import TestCatalog from "./pages/settings/TestCatalog.jsx";
 
+// Inpatient / Wards
+import WardBoard from "./pages/inpatient/WardBoard.jsx";
+import BedManagement from "./pages/inpatient/BedManagement.jsx";
+import AdmissionList from "./pages/inpatient/AdmissionList.jsx";
+import AdmitPatient from "./pages/inpatient/AdmitPatient.jsx";
+import AdmissionDetail from "./pages/inpatient/AdmissionDetail.jsx";
+
 // Preserves query params (e.g. ?invoice=xxx) when redirecting old /payments
 // links to the new /billing/payments path.
 function LegacyPaymentsRedirect() {
@@ -309,6 +316,48 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
               <TestCatalog />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Inpatient / Wards */}
+        <Route
+          path="/inpatient"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.DOCTOR, ROLES.RECEPTIONIST, ROLES.SUPER_ADMIN]}>
+              <WardBoard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inpatient/beds"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.SUPER_ADMIN]}>
+              <BedManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inpatient/admissions"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.DOCTOR, ROLES.RECEPTIONIST]}>
+              <AdmissionList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inpatient/admit"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.NURSE, ROLES.DOCTOR]}>
+              <AdmitPatient />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inpatient/admissions/:id"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.DOCTOR, ROLES.RECEPTIONIST]}>
+              <AdmissionDetail />
             </ProtectedRoute>
           }
         />
