@@ -51,6 +51,7 @@ INSTALLED_APPS = [
  
     # Local
     "api",
+    "inpatient",
 ]
 
 MIDDLEWARE = [
