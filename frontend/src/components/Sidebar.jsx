@@ -33,6 +33,16 @@ const NAV_GROUPS = [
     links: [{ to: "/queue", label: "Queue Board", icon: "bi-hourglass-split" }],
   },
   {
+    label: "Inpatient",
+    roles: [ROLES.RECEPTIONIST, ROLES.NURSE, ROLES.DOCTOR],
+    links: [
+      { to: "/inpatient", label: "Ward Board", icon: "bi-hospital" },
+      { to: "/inpatient/admissions", label: "Admissions", icon: "bi-clipboard2-pulse" },
+      { to: "/inpatient/admit", label: "Admit Patient", icon: "bi-person-plus-fill", roles: [ROLES.RECEPTIONIST, ROLES.NURSE, ROLES.DOCTOR] },
+      { to: "/inpatient/beds", label: "Bed Management", icon: "bi-grid-3x3-gap", roles: [ROLES.NURSE] },
+    ],
+  },
+  {
     label: "Clinical",
     roles: [ROLES.NURSE, ROLES.DOCTOR],
     links: [
