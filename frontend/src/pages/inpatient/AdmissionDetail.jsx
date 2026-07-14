@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   getAdmission,
+  getAdmissionBilling,
   dischargePatient,
   getAvailableBeds,
   getWards,
@@ -24,6 +25,9 @@ export default function AdmissionDetail() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("patient");
 
+  const [billing, setBilling] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(true);
+
   const [roundNotes, setRoundNotes] = useState("");
   const [roundPlan, setRoundPlan] = useState("");
 
@@ -36,7 +40,7 @@ export default function AdmissionDetail() {
   });
 
   const [medicines, setMedicines] = useState([]);
-  const [medOrder, setMedOrder] = useState({ medicine: "", dosage: "", route: "ORAL", frequency: "" });
+  const [medOrder, setMedOrder] = useState({ medicine: "", dosage: "", route: "ORAL", frequency: "", quantity: 1 });
 
   const [wards, setWards] = useState([]);
   const [transferWard, setTransferWard] = useState("");
@@ -49,6 +53,7 @@ export default function AdmissionDetail() {
 
   useEffect(() => {
     loadAdmission();
+    loadBilling();
     loadWards();
     loadMedicines();
   }, [id]);
@@ -63,6 +68,18 @@ export default function AdmissionDetail() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBilling = async () => {
+    setBillingLoading(true);
+    try {
+      const data = await getAdmissionBilling(id);
+      setBilling(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBillingLoading(false);
     }
   };
 
@@ -137,8 +154,8 @@ export default function AdmissionDetail() {
   const handleCreateMedOrder = async (e) => {
     e.preventDefault();
     try {
-      await createMedicationOrder({ admission: id, ...medOrder });
-      setMedOrder({ medicine: "", dosage: "", route: "ORAL", frequency: "" });
+      await createMedicationOrder({ admission: id, ...medOrder, quantity: Number(medOrder.quantity) || 1 });
+      setMedOrder({ medicine: "", dosage: "", route: "ORAL", frequency: "", quantity: 1 });
       loadAdmission();
     } catch (err) {
       setError(err.message);
@@ -158,6 +175,7 @@ export default function AdmissionDetail() {
     try {
       await recordMedicationAdministration({ medication_order: orderId, status: "GIVEN" });
       loadAdmission();
+      loadBilling();
     } catch (err) {
       setError(err.message);
     }
@@ -192,6 +210,15 @@ export default function AdmissionDetail() {
     }
   };
 
+  const goToBillingPayment = () => {
+    const unpaidInvoice = billing?.invoices?.find((inv) => Number(inv.balance) > 0);
+    if (unpaidInvoice) {
+      navigate(`/billing/payments?invoice=${unpaidInvoice.id}`);
+    } else {
+      navigate("/billing/payments");
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -219,6 +246,7 @@ export default function AdmissionDetail() {
 
   const tabs = [
     { id: "patient", label: "Patient Info", icon: "bi-person" },
+    { id: "billing", label: "Billing", icon: "bi-currency-dollar" },
     { id: "rounds", label: "Ward Rounds", icon: "bi-clipboard" },
     { id: "nursing", label: "Nursing Notes", icon: "bi-file-text" },
     { id: "vitals", label: "Vitals", icon: "bi-heart-pulse" },
@@ -230,6 +258,16 @@ export default function AdmissionDetail() {
     tabs.push({ id: "discharge", label: "Discharge", icon: "bi-door-open" });
     tabs.push({ id: "transfer", label: "Transfer Bed", icon: "bi-arrows-move" });
   }
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      "PAID": "badge-success",
+      "PARTIAL": "badge-warning",
+      "UNPAID": "badge-danger",
+      "CANCELLED": "badge-neutral"
+    };
+    return statusMap[status] || "badge-neutral";
+  };
 
   return (
     <div className="app-content">
@@ -375,6 +413,123 @@ export default function AdmissionDetail() {
                 <div style={{ marginTop: "var(--space-4)" }}>
                   <div className="text-sm text-muted">Discharge Summary</div>
                   <div className="consult-notes-field">{admission.discharge_summary}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Billing Tab */}
+          {activeTab === "billing" && (
+            <div>
+              {billingLoading ? (
+                <div className="loading-screen" style={{ padding: "var(--space-6)" }}>
+                  <div className="spinner"></div>
+                  <span className="loading-screen__label">Loading billing summary...</span>
+                </div>
+              ) : !billing?.has_visit ? (
+                <div className="text-sm text-muted text-center" style={{ padding: "var(--space-6)" }}>
+                  <i className="bi bi-info-circle"></i> No billing data yet. Charges will appear once bed charges or orders are generated.
+                </div>
+              ) : (
+                <div>
+                  <div className="stat-grid" style={{ marginBottom: "var(--space-4)" }}>
+                    <div className="stat-card">
+                      <div className="stat-card__top">
+                        <span className="stat-card__label">Grand Total</span>
+                        <div className="stat-card__icon tone-info">
+                          <i className="bi bi-receipt"></i>
+                        </div>
+                      </div>
+                      <div className="stat-card__value">KES {billing.grand_total}</div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-card__top">
+                        <span className="stat-card__label">Amount Paid</span>
+                        <div className="stat-card__icon tone-success">
+                          <i className="bi bi-check-circle"></i>
+                        </div>
+                      </div>
+                      <div className="stat-card__value">KES {billing.amount_paid}</div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-card__top">
+                        <span className="stat-card__label">Balance</span>
+                        <div className="stat-card__icon tone-warning">
+                          <i className="bi bi-currency-dollar"></i>
+                        </div>
+                      </div>
+                      <div className="stat-card__value">KES {billing.balance}</div>
+                    </div>
+                  </div>
+
+                  <div className="table-scroll" style={{ marginBottom: "var(--space-4)" }}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th className="cell-numeric">Items</th>
+                          <th className="cell-numeric">Total</th>
+                          <th className="cell-numeric">Paid</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(billing.breakdown).map(([sourceType, row]) => (
+                          <tr key={sourceType}>
+                            <td>{sourceType}</td>
+                            <td className="cell-numeric">{row.count}</td>
+                            <td className="cell-numeric">KES {row.total}</td>
+                            <td className="cell-numeric">KES {row.paid}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <h6 className="text-sm font-semibold" style={{ marginBottom: "var(--space-3)" }}>Invoice Detail</h6>
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Invoice #</th>
+                          <th>Type</th>
+                          <th>Description</th>
+                          <th className="cell-numeric">Amount</th>
+                          <th className="cell-numeric">Paid</th>
+                          <th className="cell-numeric">Balance</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {billing.invoices.map((inv) => (
+                          <tr key={inv.id}>
+                            <td className="cell-mono">{inv.invoice_number}</td>
+                            <td>{inv.source_type}</td>
+                            <td>{inv.description}</td>
+                            <td className="cell-numeric">KES {inv.amount}</td>
+                            <td className="cell-numeric">KES {inv.amount_paid}</td>
+                            <td className="cell-numeric">KES {inv.balance}</td>
+                            <td>
+                              <span className={`badge ${getStatusBadge(inv.status)}`}>
+                                <span className="badge-dot"></span>
+                                {inv.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="form-actions" style={{ marginTop: "var(--space-4)" }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={goToBillingPayment}
+                      disabled={Number(billing.balance) <= 0}
+                    >
+                      <i className="bi bi-credit-card"></i> Go to Billing / Take Payment
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -600,6 +755,10 @@ export default function AdmissionDetail() {
                       <label className="field-label">Frequency</label>
                       <input type="text" className="input" placeholder="e.g. Every 8 hours" value={medOrder.frequency} onChange={handleMedOrderChange("frequency")} required />
                     </div>
+                    <div className="field">
+                      <label className="field-label">Qty per dose</label>
+                      <input type="number" className="input" min="1" placeholder="Quantity" value={medOrder.quantity} onChange={handleMedOrderChange("quantity")} required />
+                    </div>
                   </div>
                   <button type="submit" className="btn btn-primary">
                     <i className="bi bi-plus-circle"></i> Add Medication Order
@@ -617,7 +776,7 @@ export default function AdmissionDetail() {
                       <div>
                         <div className="rx-item__name">{m.medicine_name}</div>
                         <div className="rx-item__detail">
-                          {m.dosage} • {m.route} • {m.frequency}
+                          {m.dosage} • {m.route} • {m.frequency} • Qty: {m.quantity}
                         </div>
                       </div>
                       <div className="flex gap-2 align-items-center">

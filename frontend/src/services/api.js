@@ -289,6 +289,7 @@ export const getAdmission = (id) => unwrap(client.get(`/admissions/${id}/`));
 export const admitPatient = (payload) => unwrap(client.post("/admissions/", payload));
 export const dischargePatient = (id, payload) => unwrap(client.post(`/admissions/${id}/discharge/`, payload));
 export const transferBed = (id, payload) => unwrap(client.post(`/admissions/${id}/transfer-bed/`, payload));
+export const getAdmissionBilling = (id) => unwrap(client.get(`/admissions/${id}/billing/`));
 
 export const getBedTransfers = (params) => unwrap(client.get(`/bed-transfers/${qs(params)}`));
 

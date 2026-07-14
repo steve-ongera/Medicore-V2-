@@ -9,3 +9,4 @@ Pillow>=10.3
 qrcode>=7.4
 python-decouple>=3.8
 django-extensions>=3.2
+apscheduler

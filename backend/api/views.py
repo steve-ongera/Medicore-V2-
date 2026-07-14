@@ -875,6 +875,7 @@ class ReportsView(APIView):
     """
     GET /api/reports/?type=daily_revenue|doctor_revenue|department_revenue|patient_statistics
                         |medicine_sales|lab_revenue|radiology_revenue|consultation_revenue|otc_sales
+                        |inpatient_revenue|bed_occupancy
         &date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
     """
     permission_classes = [IsAuthenticated]
@@ -890,7 +891,9 @@ class ReportsView(APIView):
         if report_type == "daily_revenue":
             # Combine hospital billing (Payment) with walk-in pharmacy sales
             # (OTCSale) so the daily revenue report reflects all money taken,
-            # not just hospital invoices.
+            # not just hospital invoices. Inpatient bed/medication invoices
+            # are paid through the same Payment model, so they're already
+            # included here automatically — no separate bucket needed.
             hospital_by_day = {
                 row["paid_at__date"]: row["total"] or 0
                 for row in payments.values("paid_at__date").annotate(total=Sum("amount"))
@@ -945,6 +948,33 @@ class ReportsView(APIView):
             data = list(invoices.filter(source_type=InvoiceSourceType.RADIOLOGY).aggregate(total=Sum("amount_paid")).items())
         elif report_type == "consultation_revenue":
             data = list(invoices.filter(source_type=InvoiceSourceType.CONSULTATION).aggregate(total=Sum("amount_paid")).items())
+        elif report_type == "inpatient_revenue":
+            # Bed charges + inpatient medication administrations both raise
+            # Invoice(source_type=INPATIENT / PHARMACY) against the admission's
+            # Visit — but only bed charges use INPATIENT, so this figure is
+            # bed-charge revenue specifically. See breakdown on the per-admission
+            # billing endpoint (/api/admissions/{id}/billing/) for the full mix.
+            inpatient_invoices = invoices.filter(source_type=InvoiceSourceType.INPATIENT)
+            data = {
+                "total_billed": str(inpatient_invoices.aggregate(t=Sum("amount"))["t"] or 0),
+                "total_collected": str(inpatient_invoices.aggregate(t=Sum("amount_paid"))["t"] or 0),
+                "invoice_count": inpatient_invoices.count(),
+            }
+        elif report_type == "bed_occupancy":
+            # Snapshot as of now, not date-ranged — occupancy is a current-state
+            # metric, unlike the other reports which are historical.
+            from inpatient.models import Ward
+            data = [
+                {
+                    "ward": w.name,
+                    "ward_type": w.ward_type,
+                    "capacity": w.bed_capacity,
+                    "occupied": w.occupied_beds,
+                    "available": w.bed_capacity - w.occupied_beds,
+                    "occupancy_rate": round((w.occupied_beds / w.bed_capacity * 100), 1) if w.bed_capacity else 0,
+                }
+                for w in Ward.objects.filter(is_active=True)
+            ]
         else:
             return Response({"detail": "Unknown report type."}, status=status.HTTP_400_BAD_REQUEST)
 
