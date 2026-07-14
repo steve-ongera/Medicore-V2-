@@ -126,6 +126,7 @@ class AdmissionSerializer(serializers.ModelSerializer):
     admitting_doctor_name = serializers.CharField(source="admitting_doctor.get_full_name", read_only=True)
     attending_doctor_name = serializers.CharField(source="attending_doctor.get_full_name", read_only=True)
     length_of_stay_days = serializers.IntegerField(read_only=True)
+    consultation_id = serializers.SerializerMethodField()  # NEW
 
     ward_rounds = WardRoundSerializer(many=True, read_only=True)
     nursing_notes = NursingNoteSerializer(many=True, read_only=True)
@@ -137,7 +138,7 @@ class AdmissionSerializer(serializers.ModelSerializer):
         model = Admission
         fields = [
             "id", "admission_number", "patient", "patient_name", "hospital_number", "visit",
-            "bed", "ward_name", "bed_number", "admitting_doctor", "admitting_doctor_name",
+            "consultation_id", "bed", "ward_name", "bed_number", "admitting_doctor", "admitting_doctor_name",
             "attending_doctor", "attending_doctor_name", "admitted_by", "admission_type",
             "admission_diagnosis", "icd10_codes", "admission_date", "expected_discharge_date",
             "status", "discharge_date", "discharge_type", "discharge_summary", "discharge_by",
@@ -149,6 +150,10 @@ class AdmissionSerializer(serializers.ModelSerializer):
             "discharge_date", "discharge_by",
         ]
 
+    def get_consultation_id(self, obj):
+        if obj.visit and hasattr(obj.visit, "consultation"):
+            return str(obj.visit.consultation.id)
+        return None
 
 class AdmissionListSerializer(serializers.ModelSerializer):
     """Lightweight shape for the admissions/ward board list."""

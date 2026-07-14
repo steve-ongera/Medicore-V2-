@@ -7,14 +7,21 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
-from api.views import BaseModelViewSet
-from api.models import Patient, Visit, User, Invoice, InvoiceSourceType
-from api.permissions import IsDoctor, IsNurse, IsReceptionist, IsCashierOrAccountant, ReadOnlyOrSuperAdmin
+from api.views import BaseModelViewSet, OutOfStockError
+from api.models import (
+    Patient, Visit, VisitStatus, ConsultationType, Department,
+    User, Invoice, InvoiceSourceType, MedicineBatch, StockTransaction, StockTransactionType,
+)
+from api.permissions import (
+    HasRole, IsReceptionist, IsCashierOrAccountant, IsNurse, IsDoctor, ReadOnlyOrSuperAdmin,
+)
+from api.serializers import InvoiceSerializer
 
+from .services import generate_daily_bed_charges
 from .models import (
     Ward, Bed, BedStatus, Admission, AdmissionStatus, BedTransfer,
     WardRound, NursingNote, InpatientVitals, MedicationOrder,
-    MedicationAdministration, BedCharge,
+    MedicationAdministration, AdministrationStatus, BedCharge,
 )
 from .serializers import (
     WardSerializer, BedSerializer, AdmissionSerializer, AdmissionListSerializer,
@@ -24,6 +31,9 @@ from .serializers import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Wards & Beds
+# ---------------------------------------------------------------------------
 class WardViewSet(BaseModelViewSet):
     queryset = Ward.objects.filter(is_active=True)
     serializer_class = WardSerializer
@@ -60,8 +70,11 @@ class BedViewSet(BaseModelViewSet):
         return Response(BedSerializer(qs, many=True).data)
 
 
+# ---------------------------------------------------------------------------
+# Admissions
+# ---------------------------------------------------------------------------
 class AdmissionViewSet(BaseModelViewSet):
-    queryset = Admission.objects.select_related("patient", "bed__ward", "attending_doctor").all()
+    queryset = Admission.objects.select_related("patient", "bed__ward", "attending_doctor", "visit").all()
     filterset_fields = ["status", "admission_type", "bed__ward"]
     search_fields = ["admission_number", "patient__full_name", "patient__hospital_number"]
 
@@ -86,9 +99,35 @@ class AdmissionViewSet(BaseModelViewSet):
             raise ValidationError({"patient": "Patient not found."})
 
         with transaction.atomic():
+            visit = None
+            if data.get("visit"):
+                visit = Visit.objects.filter(pk=data["visit"]).first()
+                if not visit:
+                    raise ValidationError({"visit": "Visit not found."})
+            else:
+                # No prior OPD visit (e.g. direct emergency admission) — create one
+                # so bed charges, medications, and any lab/radiology orders during
+                # this stay all invoice against the same Visit and show up together
+                # in Billing / Payments / Reports, same as outpatient care.
+                inpatient_dept, _ = Department.objects.get_or_create(
+                    name="Inpatient Admission",
+                    defaults={
+                        "consultation_fee": 0,
+                        "description": "Auto-created department for direct inpatient admissions without a prior OPD visit.",
+                    },
+                )
+                visit = Visit.objects.create(
+                    patient=patient,
+                    department=inpatient_dept,
+                    doctor_id=data["admitting_doctor"],
+                    consultation_type=ConsultationType.OTHER,
+                    status=VisitStatus.IN_CONSULTATION,
+                    registered_by=request.user,
+                )
+
             admission = Admission.objects.create(
                 patient=patient,
-                visit_id=data.get("visit"),
+                visit=visit,
                 bed=bed,
                 admitting_doctor_id=data["admitting_doctor"],
                 attending_doctor_id=data.get("attending_doctor") or data["admitting_doctor"],
@@ -158,6 +197,57 @@ class AdmissionViewSet(BaseModelViewSet):
         qs = self.get_queryset().filter(status=AdmissionStatus.ADMITTED)
         return Response(AdmissionListSerializer(qs, many=True).data)
 
+    @action(detail=True, methods=["get"], url_path="billing")
+    def billing(self, request, pk=None):
+        """
+        Consolidated bill for this admission: bed charges, inpatient medication
+        administrations, and any lab/radiology/pharmacy invoices raised against
+        the same Visit during this stay. Mirrors PaymentViewSet.receipt /
+        OTCSaleViewSet.receipt in shape — a read-only aggregation, nothing here
+        writes to Invoice/Payment.
+        """
+        admission = self.get_object()
+
+        if not admission.visit:
+            return Response({
+                "admission_number": admission.admission_number,
+                "patient_name": admission.patient.full_name,
+                "has_visit": False,
+                "invoices": [],
+                "breakdown": {},
+                "grand_total": "0.00",
+                "amount_paid": "0.00",
+                "balance": "0.00",
+            })
+
+        invoices = Invoice.objects.filter(visit=admission.visit).order_by("created_at")
+
+        breakdown = {}
+        grand_total = 0
+        amount_paid = 0
+        for inv in invoices:
+            bucket = breakdown.setdefault(inv.source_type, {"count": 0, "total": 0, "paid": 0})
+            bucket["count"] += 1
+            bucket["total"] += inv.amount
+            bucket["paid"] += inv.amount_paid
+            grand_total += inv.amount
+            amount_paid += inv.amount_paid
+
+        return Response({
+            "admission_number": admission.admission_number,
+            "patient_name": admission.patient.full_name,
+            "has_visit": True,
+            "visit_number": admission.visit.visit_number,
+            "invoices": InvoiceSerializer(invoices, many=True).data,
+            "breakdown": {
+                k: {"count": v["count"], "total": str(v["total"]), "paid": str(v["paid"])}
+                for k, v in breakdown.items()
+            },
+            "grand_total": str(grand_total),
+            "amount_paid": str(amount_paid),
+            "balance": str(grand_total - amount_paid),
+        })
+
 
 class BedTransferViewSet(BaseModelViewSet):
     queryset = BedTransfer.objects.select_related("from_bed", "to_bed").all()
@@ -166,6 +256,9 @@ class BedTransferViewSet(BaseModelViewSet):
     http_method_names = ["get", "head", "options"]  # created only via Admission.transfer-bed
 
 
+# ---------------------------------------------------------------------------
+# Clinical activity while admitted
+# ---------------------------------------------------------------------------
 class WardRoundViewSet(BaseModelViewSet):
     queryset = WardRound.objects.select_related("doctor").all()
     serializer_class = WardRoundSerializer
@@ -193,6 +286,9 @@ class InpatientVitalsViewSet(BaseModelViewSet):
         serializer.save(recorded_by=self.request.user)
 
 
+# ---------------------------------------------------------------------------
+# Inpatient medication (separate from OPD Prescription/PharmacyDispense)
+# ---------------------------------------------------------------------------
 class MedicationOrderViewSet(BaseModelViewSet):
     queryset = MedicationOrder.objects.select_related("medicine").all()
     serializer_class = MedicationOrderSerializer
@@ -211,14 +307,57 @@ class MedicationOrderViewSet(BaseModelViewSet):
 
 
 class MedicationAdministrationViewSet(BaseModelViewSet):
-    queryset = MedicationAdministration.objects.select_related("medication_order__medicine").all()
+    queryset = MedicationAdministration.objects.select_related(
+        "medication_order__medicine", "batch", "invoice"
+    ).all()
     serializer_class = MedicationAdministrationSerializer
     filterset_fields = ["medication_order", "status"]
 
     def perform_create(self, serializer):
-        serializer.save(administered_by=self.request.user)
+        order = serializer.validated_data["medication_order"]
+        status_value = serializer.validated_data.get("status", AdministrationStatus.GIVEN)
+
+        # Missed / refused / held doses don't consume stock or bill the patient.
+        if status_value != AdministrationStatus.GIVEN:
+            serializer.save(administered_by=self.request.user)
+            return
+
+        medicine = order.medicine
+        quantity = order.quantity
+
+        batch = (
+            MedicineBatch.objects.filter(medicine=medicine, quantity_remaining__gte=quantity)
+            .order_by("expiry_date").first()
+        )
+        if not batch:
+            raise OutOfStockError(f"{medicine.name} is out of stock.")
+
+        with transaction.atomic():
+            admin_record = serializer.save(administered_by=self.request.user, batch=batch)
+
+            batch.quantity_remaining -= quantity
+            batch.save(update_fields=["quantity_remaining"])
+
+            StockTransaction.objects.create(
+                medicine=medicine, batch=batch, transaction_type=StockTransactionType.STOCK_OUT,
+                quantity=quantity, reason=f"Inpatient administration - {order.admission.admission_number}",
+                performed_by=self.request.user,
+            )
+
+            invoice = Invoice.objects.create(
+                patient=order.admission.patient,
+                visit=order.admission.visit,
+                source_type=InvoiceSourceType.PHARMACY,
+                description=f"Inpatient Medication - {medicine.name} x{quantity} ({order.admission.admission_number})",
+                amount=medicine.unit_price * quantity,
+            )
+            admin_record.invoice = invoice
+            admin_record.save(update_fields=["invoice"])
 
 
+# ---------------------------------------------------------------------------
+# Bed / ward billing
+# ---------------------------------------------------------------------------
 class BedChargeViewSet(BaseModelViewSet):
     queryset = BedCharge.objects.select_related("bed").all()
     serializer_class = BedChargeSerializer
@@ -228,26 +367,5 @@ class BedChargeViewSet(BaseModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="generate-today")
     def generate_today(self, request):
-        """Creates today's bed charge (+ invoice) for every currently admitted patient who doesn't already have one."""
-        today = date.today()
-        created = []
-        active_admissions = Admission.objects.filter(status=AdmissionStatus.ADMITTED).select_related("bed", "patient")
-
-        for admission in active_admissions:
-            if BedCharge.objects.filter(admission=admission, charge_date=today).exists():
-                continue
-            amount = admission.bed.daily_rate
-            invoice = Invoice.objects.create(
-                patient=admission.patient,
-                visit=admission.visit,
-                source_type=InvoiceSourceType.INPATIENT,
-                description=f"Bed Charge - {admission.bed.ward.name} Bed {admission.bed.bed_number} ({today})",
-                amount=amount,
-            )
-            charge = BedCharge.objects.create(
-                admission=admission, bed=admission.bed, charge_date=today,
-                amount=amount, invoice=invoice,
-            )
-            created.append(str(charge.id))
-
+        created = generate_daily_bed_charges()
         return Response({"generated": len(created), "charge_ids": created})
