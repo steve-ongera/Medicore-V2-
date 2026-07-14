@@ -91,7 +91,7 @@ class MedicationOrderSerializer(serializers.ModelSerializer):
         model = MedicationOrder
         fields = [
             "id", "admission", "medicine", "medicine_name", "dosage", "route", "frequency",
-            "start_date", "end_date", "is_active", "ordered_by", "ordered_by_name",
+            "quantity", "start_date", "end_date", "is_active", "ordered_by", "ordered_by_name",
         ]
         read_only_fields = ["id", "start_date", "ordered_by"]
 
@@ -104,9 +104,9 @@ class MedicationAdministrationSerializer(serializers.ModelSerializer):
         model = MedicationAdministration
         fields = [
             "id", "medication_order", "medicine_name", "administered_by", "administered_by_name",
-            "status", "notes", "administered_at",
+            "status", "notes", "batch", "invoice", "administered_at",
         ]
-        read_only_fields = ["id", "administered_by", "administered_at"]
+        read_only_fields = ["id", "administered_by", "batch", "invoice", "administered_at"]
 
 
 class BedChargeSerializer(serializers.ModelSerializer):
