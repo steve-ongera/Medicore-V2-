@@ -5,6 +5,7 @@ from .views import (
     WardViewSet, BedViewSet, AdmissionViewSet, BedTransferViewSet,
     WardRoundViewSet, NursingNoteViewSet, InpatientVitalsViewSet,
     MedicationOrderViewSet, MedicationAdministrationViewSet, BedChargeViewSet,
+    ProcedureCatalogViewSet, InpatientProcedureViewSet,
 )
 
 router = DefaultRouter()
@@ -18,5 +19,7 @@ router.register(r"inpatient-vitals", InpatientVitalsViewSet, basename="inpatient
 router.register(r"medication-orders", MedicationOrderViewSet, basename="medication-order")
 router.register(r"medication-administrations", MedicationAdministrationViewSet, basename="medication-administration")
 router.register(r"bed-charges", BedChargeViewSet, basename="bed-charge")
+router.register(r"procedure-catalog", ProcedureCatalogViewSet, basename="procedure-catalog")
+router.register(r"inpatient-procedures", InpatientProcedureViewSet, basename="inpatient-procedure")
 
 urlpatterns = [path("", include(router.urls))]

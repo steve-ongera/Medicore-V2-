@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     Ward, Bed, Admission, BedTransfer, WardRound, NursingNote,
-    InpatientVitals, MedicationOrder, MedicationAdministration, BedCharge,
+    InpatientVitals, MedicationOrder, MedicationAdministration, BedCharge, ProcedureCatalog , InpatientProcedure
 )
 
 
@@ -121,3 +121,17 @@ class BedChargeAdmin(admin.ModelAdmin):
     list_filter = ("charge_date",)
     search_fields = ("admission__admission_number", "admission__patient__full_name")
     autocomplete_fields = ("admission", "bed", "invoice")
+    
+    
+
+@admin.register(ProcedureCatalog)
+class ProcedureCatalogAdmin(admin.ModelAdmin):
+    list_display = ["code", "name", "price", "is_active"]
+    search_fields = ["code", "name"]
+
+
+@admin.register(InpatientProcedure)
+class InpatientProcedureAdmin(admin.ModelAdmin):
+    list_display = ["admission", "procedure", "status", "ordered_by", "performed_by", "ordered_at"]
+    list_filter = ["status"]
+    search_fields = ["admission__admission_number", "procedure__name"]

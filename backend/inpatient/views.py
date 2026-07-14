@@ -11,23 +11,28 @@ from api.views import BaseModelViewSet, OutOfStockError
 from api.models import (
     Patient, Visit, VisitStatus, ConsultationType, Department,
     User, Invoice, InvoiceSourceType, MedicineBatch, StockTransaction, StockTransactionType,
+    Consultation, ConsultationStatus, LabOrder, LabOrderStatus, RadiologyOrder, RadiologyOrderStatus,
+    LabTestCatalog, RadiologyTestCatalog,
 )
 from api.permissions import (
     HasRole, IsReceptionist, IsCashierOrAccountant, IsNurse, IsDoctor, ReadOnlyOrSuperAdmin,
 )
-from api.serializers import InvoiceSerializer
+from api.serializers import InvoiceSerializer, LabOrderSerializer, RadiologyOrderSerializer
 
 from .services import generate_daily_bed_charges
 from .models import (
     Ward, Bed, BedStatus, Admission, AdmissionStatus, BedTransfer,
     WardRound, NursingNote, InpatientVitals, MedicationOrder,
     MedicationAdministration, AdministrationStatus, BedCharge,
+    ProcedureCatalog, InpatientProcedure, ProcedureStatus,
 )
 from .serializers import (
     WardSerializer, BedSerializer, AdmissionSerializer, AdmissionListSerializer,
     AdmitPatientSerializer, DischargeSerializer, BedTransferSerializer,
     WardRoundSerializer, NursingNoteSerializer, InpatientVitalsSerializer,
     MedicationOrderSerializer, MedicationAdministrationSerializer, BedChargeSerializer,
+    ProcedureCatalogSerializer, InpatientProcedureSerializer,
+    OrderProcedureSerializer, OrderLabSerializer, OrderRadiologySerializer,
 )
 
 
@@ -83,6 +88,46 @@ class AdmissionViewSet(BaseModelViewSet):
             return AdmissionListSerializer
         return AdmissionSerializer
 
+    # -----------------------------------------------------------------
+    # Internal helpers: guarantee this admission has a Visit, and a
+    # Consultation on that Visit, so lab/radiology orders (which require a
+    # Consultation FK in the OPD model) can be raised for inpatients too.
+    # -----------------------------------------------------------------
+    def _ensure_visit(self, admission):
+        if admission.visit:
+            return admission.visit
+
+        inpatient_dept, _ = Department.objects.get_or_create(
+            name="Inpatient Admission",
+            defaults={
+                "consultation_fee": 0,
+                "description": "Auto-created department for direct inpatient admissions without a prior OPD visit.",
+            },
+        )
+        visit = Visit.objects.create(
+            patient=admission.patient,
+            department=inpatient_dept,
+            doctor=admission.admitting_doctor,
+            consultation_type=ConsultationType.OTHER,
+            status=VisitStatus.IN_CONSULTATION,
+            registered_by=admission.admitted_by,
+        )
+        admission.visit = visit
+        admission.save(update_fields=["visit"])
+        return visit
+
+    def _ensure_consultation(self, admission, ordering_user):
+        visit = self._ensure_visit(admission)
+        if hasattr(visit, "consultation"):
+            return visit.consultation
+
+        return Consultation.objects.create(
+            visit=visit,
+            doctor=admission.attending_doctor or admission.admitting_doctor,
+            chief_complaint=admission.admission_diagnosis,
+            status=ConsultationStatus.IN_PROGRESS,
+        )
+
     def create(self, request, *args, **kwargs):
         serializer = AdmitPatientSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -104,26 +149,6 @@ class AdmissionViewSet(BaseModelViewSet):
                 visit = Visit.objects.filter(pk=data["visit"]).first()
                 if not visit:
                     raise ValidationError({"visit": "Visit not found."})
-            else:
-                # No prior OPD visit (e.g. direct emergency admission) — create one
-                # so bed charges, medications, and any lab/radiology orders during
-                # this stay all invoice against the same Visit and show up together
-                # in Billing / Payments / Reports, same as outpatient care.
-                inpatient_dept, _ = Department.objects.get_or_create(
-                    name="Inpatient Admission",
-                    defaults={
-                        "consultation_fee": 0,
-                        "description": "Auto-created department for direct inpatient admissions without a prior OPD visit.",
-                    },
-                )
-                visit = Visit.objects.create(
-                    patient=patient,
-                    department=inpatient_dept,
-                    doctor_id=data["admitting_doctor"],
-                    consultation_type=ConsultationType.OTHER,
-                    status=VisitStatus.IN_CONSULTATION,
-                    registered_by=request.user,
-                )
 
             admission = Admission.objects.create(
                 patient=patient,
@@ -136,6 +161,9 @@ class AdmissionViewSet(BaseModelViewSet):
                 admission_diagnosis=data.get("admission_diagnosis", ""),
                 expected_discharge_date=data.get("expected_discharge_date"),
             )
+            if not visit:
+                self._ensure_visit(admission)
+
             bed.status = BedStatus.OCCUPIED
             bed.save(update_fields=["status"])
 
@@ -199,33 +227,21 @@ class AdmissionViewSet(BaseModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="billing")
     def billing(self, request, pk=None):
+        """
+        Consolidated bill for this admission: bed charges, inpatient medication
+        administrations, procedures, and any lab/radiology invoices raised
+        against the same Visit during this stay.
+
+        Self-healing: older/seeded admissions created without a Visit get one
+        lazily created here, and any existing invoices missing a visit link
+        get backfilled — so billing works even for pre-existing admissions.
+        """
         admission = self.get_object()
 
         if not admission.visit:
-            from api.models import Department, ConsultationType, VisitStatus
-
             with transaction.atomic():
-                inpatient_dept, _ = Department.objects.get_or_create(
-                    name="Inpatient Admission",
-                    defaults={
-                        "consultation_fee": 0,
-                        "description": "Auto-created department for direct inpatient admissions without a prior OPD visit.",
-                    },
-                )
-                visit = Visit.objects.create(
-                    patient=admission.patient,
-                    department=inpatient_dept,
-                    doctor=admission.admitting_doctor,
-                    consultation_type=ConsultationType.OTHER,
-                    status=VisitStatus.IN_CONSULTATION,
-                    registered_by=admission.admitted_by,
-                )
-                admission.visit = visit
-                admission.save(update_fields=["visit"])
+                visit = self._ensure_visit(admission)
 
-                # Backfill any bed charges / medication invoices this admission
-                # already accumulated while it had no visit, so they retroactively
-                # show up in this bill instead of being orphaned.
                 for charge in BedCharge.objects.filter(admission=admission).select_related("invoice"):
                     if charge.invoice and not charge.invoice.visit:
                         charge.invoice.visit = visit
@@ -236,6 +252,10 @@ class AdmissionViewSet(BaseModelViewSet):
                     if admin_record.invoice and not admin_record.invoice.visit:
                         admin_record.invoice.visit = visit
                         admin_record.invoice.save(update_fields=["visit"])
+                for proc in InpatientProcedure.objects.filter(admission=admission).select_related("invoice"):
+                    if proc.invoice and not proc.invoice.visit:
+                        proc.invoice.visit = visit
+                        proc.invoice.save(update_fields=["visit"])
 
         invoices = Invoice.objects.filter(visit=admission.visit).order_by("created_at")
 
@@ -264,6 +284,95 @@ class AdmissionViewSet(BaseModelViewSet):
             "amount_paid": str(amount_paid),
             "balance": str(grand_total - amount_paid),
         })
+
+    # -----------------------------------------------------------------
+    # Lab / Radiology ordering directly from an admission
+    # -----------------------------------------------------------------
+    @action(detail=True, methods=["post"], url_path="order-lab")
+    def order_lab(self, request, pk=None):
+        admission = self.get_object()
+        serializer = OrderLabSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        test = LabTestCatalog.objects.filter(pk=serializer.validated_data["test"], is_active=True).first()
+        if not test:
+            raise ValidationError({"test": "Lab test not found."})
+
+        with transaction.atomic():
+            consultation = self._ensure_consultation(admission, request.user)
+            order = LabOrder.objects.create(
+                consultation=consultation, test=test, ordered_by=request.user,
+            )
+            invoice = Invoice.objects.create(
+                patient=admission.patient,
+                visit=consultation.visit,
+                source_type=InvoiceSourceType.LAB,
+                description=f"Lab Test - {test.name} ({admission.admission_number})",
+                amount=test.price,
+            )
+            order.invoice = invoice
+            order.save(update_fields=["invoice"])
+
+        return Response(LabOrderSerializer(order, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="order-radiology")
+    def order_radiology(self, request, pk=None):
+        admission = self.get_object()
+        serializer = OrderRadiologySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        test = RadiologyTestCatalog.objects.filter(pk=serializer.validated_data["test"], is_active=True).first()
+        if not test:
+            raise ValidationError({"test": "Radiology test not found."})
+
+        with transaction.atomic():
+            consultation = self._ensure_consultation(admission, request.user)
+            order = RadiologyOrder.objects.create(
+                consultation=consultation, test=test, ordered_by=request.user,
+            )
+            invoice = Invoice.objects.create(
+                patient=admission.patient,
+                visit=consultation.visit,
+                source_type=InvoiceSourceType.RADIOLOGY,
+                description=f"Radiology - {test.name} ({admission.admission_number})",
+                amount=test.price,
+            )
+            order.invoice = invoice
+            order.save(update_fields=["invoice"])
+
+        return Response(RadiologyOrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+    # -----------------------------------------------------------------
+    # Procedures
+    # -----------------------------------------------------------------
+    @action(detail=True, methods=["post"], url_path="order-procedure")
+    def order_procedure(self, request, pk=None):
+        admission = self.get_object()
+        serializer = OrderProcedureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        procedure = ProcedureCatalog.objects.filter(pk=serializer.validated_data["procedure"], is_active=True).first()
+        if not procedure:
+            raise ValidationError({"procedure": "Procedure not found."})
+
+        with transaction.atomic():
+            visit = self._ensure_visit(admission)
+            proc = InpatientProcedure.objects.create(
+                admission=admission, procedure=procedure,
+                notes=serializer.validated_data.get("notes", ""),
+                ordered_by=request.user,
+            )
+            invoice = Invoice.objects.create(
+                patient=admission.patient,
+                visit=visit,
+                source_type=InvoiceSourceType.PROCEDURE,
+                description=f"Procedure - {procedure.name} ({admission.admission_number})",
+                amount=procedure.price,
+            )
+            proc.invoice = invoice
+            proc.save(update_fields=["invoice"])
+
+        return Response(InpatientProcedureSerializer(proc).data, status=status.HTTP_201_CREATED)
 
 
 class BedTransferViewSet(BaseModelViewSet):
@@ -334,7 +443,6 @@ class MedicationAdministrationViewSet(BaseModelViewSet):
         order = serializer.validated_data["medication_order"]
         status_value = serializer.validated_data.get("status", AdministrationStatus.GIVEN)
 
-        # Missed / refused / held doses don't consume stock or bill the patient.
         if status_value != AdministrationStatus.GIVEN:
             serializer.save(administered_by=self.request.user)
             return
@@ -370,6 +478,31 @@ class MedicationAdministrationViewSet(BaseModelViewSet):
             )
             admin_record.invoice = invoice
             admin_record.save(update_fields=["invoice"])
+
+
+# ---------------------------------------------------------------------------
+# Procedures (catalog + performed)
+# ---------------------------------------------------------------------------
+class ProcedureCatalogViewSet(BaseModelViewSet):
+    queryset = ProcedureCatalog.objects.filter(is_active=True)
+    serializer_class = ProcedureCatalogSerializer
+    permission_classes = [ReadOnlyOrSuperAdmin]
+    search_fields = ["name", "code"]
+
+
+class InpatientProcedureViewSet(BaseModelViewSet):
+    queryset = InpatientProcedure.objects.select_related("procedure", "admission").all()
+    serializer_class = InpatientProcedureSerializer
+    filterset_fields = ["admission", "status"]
+
+    @action(detail=True, methods=["post"], url_path="complete")
+    def complete(self, request, pk=None):
+        proc = self.get_object()
+        proc.status = ProcedureStatus.COMPLETED
+        proc.performed_by = request.user
+        proc.completed_at = timezone.now()
+        proc.save(update_fields=["status", "performed_by", "completed_at"])
+        return Response(InpatientProcedureSerializer(proc).data)
 
 
 # ---------------------------------------------------------------------------
