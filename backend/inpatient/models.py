@@ -275,3 +275,48 @@ class BedCharge(BaseModel):
     class Meta:
         db_table = "bed_charges"
         unique_together = ("admission", "charge_date")
+        
+        
+        
+
+# ---------------------------------------------------------------------------
+# Inpatient Procedures (bedside/ward procedures — dressing changes, catheter
+# insertion, minor sutures, etc. — distinct from OPD LabOrder/RadiologyOrder
+# which require a Consultation. Procedures bill directly against the
+# admission's Visit.)
+# ---------------------------------------------------------------------------
+class ProcedureCatalog(BaseModel):
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=150)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "procedure_catalog"
+
+    def __str__(self):
+        return self.name
+
+
+class ProcedureStatus(models.TextChoices):
+    ORDERED = "ORDERED", "Ordered"
+    COMPLETED = "COMPLETED", "Completed"
+    CANCELLED = "CANCELLED", "Cancelled"
+
+
+class InpatientProcedure(BaseModel):
+    admission = models.ForeignKey(Admission, on_delete=models.CASCADE, related_name="procedures")
+    procedure = models.ForeignKey(ProcedureCatalog, on_delete=models.PROTECT, related_name="orders")
+    status = models.CharField(max_length=20, choices=ProcedureStatus.choices, default=ProcedureStatus.ORDERED)
+    notes = models.TextField(blank=True)
+    ordered_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="procedures_ordered")
+    performed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="procedures_performed")
+    invoice = models.ForeignKey("api.Invoice", null=True, blank=True, on_delete=models.SET_NULL, related_name="inpatient_procedures")
+    ordered_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "inpatient_procedures"
+
+    def __str__(self):
+        return f"{self.procedure.name} - {self.admission.admission_number}"
