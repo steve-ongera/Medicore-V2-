@@ -231,7 +231,8 @@ class MedicationOrder(BaseModel):
     medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT, related_name="inpatient_orders")
     dosage = models.CharField(max_length=100)
     route = models.CharField(max_length=20, choices=MedicationRoute.choices, default=MedicationRoute.ORAL)
-    frequency = models.CharField(max_length=100)  # e.g. "Every 8 hours"
+    frequency = models.CharField(max_length=100)
+    quantity = models.PositiveIntegerField(default=1)  # <-- NEW: units consumed per administration, used for stock + billing
     start_date = models.DateTimeField(auto_now_add=True)
     end_date = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
