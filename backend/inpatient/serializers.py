@@ -119,6 +119,22 @@ class BedChargeSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "invoice"]
 
 
+class InpatientProcedureSerializer(serializers.ModelSerializer):
+    procedure_name = serializers.CharField(source="procedure.name", read_only=True)
+    procedure_price = serializers.DecimalField(source="procedure.price", max_digits=10, decimal_places=2, read_only=True)
+    ordered_by_name = serializers.CharField(source="ordered_by.get_full_name", read_only=True)
+    performed_by_name = serializers.CharField(source="performed_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = InpatientProcedure
+        fields = [
+            "id", "admission", "procedure", "procedure_name", "procedure_price", "status", "notes",
+            "ordered_by", "ordered_by_name", "performed_by", "performed_by_name",
+            "invoice", "ordered_at", "completed_at",
+        ]
+        read_only_fields = ["id", "ordered_by", "invoice", "ordered_at", "completed_at"]
+
+
 class AdmissionSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source="patient.full_name", read_only=True)
     hospital_number = serializers.CharField(source="patient.hospital_number", read_only=True)
@@ -127,13 +143,16 @@ class AdmissionSerializer(serializers.ModelSerializer):
     admitting_doctor_name = serializers.CharField(source="admitting_doctor.get_full_name", read_only=True)
     attending_doctor_name = serializers.CharField(source="attending_doctor.get_full_name", read_only=True)
     length_of_stay_days = serializers.IntegerField(read_only=True)
-    consultation_id = serializers.SerializerMethodField()  # NEW
+    consultation_id = serializers.SerializerMethodField()
+    lab_orders = serializers.SerializerMethodField()
+    radiology_orders = serializers.SerializerMethodField()
 
     ward_rounds = WardRoundSerializer(many=True, read_only=True)
     nursing_notes = NursingNoteSerializer(many=True, read_only=True)
     vitals = InpatientVitalsSerializer(many=True, read_only=True)
     medication_orders = MedicationOrderSerializer(many=True, read_only=True)
     bed_transfers = BedTransferSerializer(many=True, read_only=True)
+    procedures = InpatientProcedureSerializer(many=True, read_only=True)
 
     class Meta:
         model = Admission
@@ -144,7 +163,7 @@ class AdmissionSerializer(serializers.ModelSerializer):
             "admission_diagnosis", "icd10_codes", "admission_date", "expected_discharge_date",
             "status", "discharge_date", "discharge_type", "discharge_summary", "discharge_by",
             "length_of_stay_days", "ward_rounds", "nursing_notes", "vitals",
-            "medication_orders", "bed_transfers",
+            "medication_orders", "bed_transfers", "procedures", "lab_orders", "radiology_orders",
         ]
         read_only_fields = [
             "id", "admission_number", "admitted_by", "admission_date", "status",
@@ -155,6 +174,20 @@ class AdmissionSerializer(serializers.ModelSerializer):
         if obj.visit and hasattr(obj.visit, "consultation"):
             return str(obj.visit.consultation.id)
         return None
+
+    def get_lab_orders(self, obj):
+        from api.serializers import LabOrderSerializer
+        if obj.visit and hasattr(obj.visit, "consultation"):
+            orders = obj.visit.consultation.lab_orders.all().order_by("-ordered_at")
+            return LabOrderSerializer(orders, many=True, context=self.context).data
+        return []
+
+    def get_radiology_orders(self, obj):
+        from api.serializers import RadiologyOrderSerializer
+        if obj.visit and hasattr(obj.visit, "consultation"):
+            orders = obj.visit.consultation.radiology_orders.all().order_by("-ordered_at")
+            return RadiologyOrderSerializer(orders, many=True, context=self.context).data
+        return []
 
 class AdmissionListSerializer(serializers.ModelSerializer):
     """Lightweight shape for the admissions/ward board list."""
@@ -200,20 +233,6 @@ class ProcedureCatalogSerializer(serializers.ModelSerializer):
         fields = ["id", "code", "name", "price", "is_active"]
 
 
-class InpatientProcedureSerializer(serializers.ModelSerializer):
-    procedure_name = serializers.CharField(source="procedure.name", read_only=True)
-    procedure_price = serializers.DecimalField(source="procedure.price", max_digits=10, decimal_places=2, read_only=True)
-    ordered_by_name = serializers.CharField(source="ordered_by.get_full_name", read_only=True)
-    performed_by_name = serializers.CharField(source="performed_by.get_full_name", read_only=True)
-
-    class Meta:
-        model = InpatientProcedure
-        fields = [
-            "id", "admission", "procedure", "procedure_name", "procedure_price", "status", "notes",
-            "ordered_by", "ordered_by_name", "performed_by", "performed_by_name",
-            "invoice", "ordered_at", "completed_at",
-        ]
-        read_only_fields = ["id", "ordered_by", "invoice", "ordered_at", "completed_at"]
 
 
 class OrderProcedureSerializer(serializers.Serializer):
