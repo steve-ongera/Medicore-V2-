@@ -3,8 +3,9 @@ from rest_framework import serializers
 from api.models import Invoice, InvoiceSourceType
 from .models import (
     Ward, Bed, Admission, BedTransfer, WardRound, NursingNote,
-    InpatientVitals, MedicationOrder, MedicationAdministration, BedCharge,
+    InpatientVitals, MedicationOrder, MedicationAdministration, BedCharge, ProcedureCatalog, InpatientProcedure
 )
+from api.models import LabOrder, RadiologyOrder
 
 
 class WardSerializer(serializers.ModelSerializer):
@@ -188,3 +189,41 @@ class AdmitPatientSerializer(serializers.Serializer):
     admission_type = serializers.ChoiceField(choices=["EMERGENCY", "ELECTIVE", "TRANSFER_IN", "MATERNITY"])
     admission_diagnosis = serializers.CharField(required=False, allow_blank=True, default="")
     expected_discharge_date = serializers.DateField(required=False, allow_null=True)
+    
+    
+
+class ProcedureCatalogSerializer(serializers.ModelSerializer):
+    is_active = serializers.BooleanField(default=True)
+
+    class Meta:
+        model = ProcedureCatalog
+        fields = ["id", "code", "name", "price", "is_active"]
+
+
+class InpatientProcedureSerializer(serializers.ModelSerializer):
+    procedure_name = serializers.CharField(source="procedure.name", read_only=True)
+    procedure_price = serializers.DecimalField(source="procedure.price", max_digits=10, decimal_places=2, read_only=True)
+    ordered_by_name = serializers.CharField(source="ordered_by.get_full_name", read_only=True)
+    performed_by_name = serializers.CharField(source="performed_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = InpatientProcedure
+        fields = [
+            "id", "admission", "procedure", "procedure_name", "procedure_price", "status", "notes",
+            "ordered_by", "ordered_by_name", "performed_by", "performed_by_name",
+            "invoice", "ordered_at", "completed_at",
+        ]
+        read_only_fields = ["id", "ordered_by", "invoice", "ordered_at", "completed_at"]
+
+
+class OrderProcedureSerializer(serializers.Serializer):
+    procedure = serializers.UUIDField()
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class OrderLabSerializer(serializers.Serializer):
+    test = serializers.UUIDField()
+
+
+class OrderRadiologySerializer(serializers.Serializer):
+    test = serializers.UUIDField()
