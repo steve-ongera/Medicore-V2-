@@ -254,6 +254,8 @@ class MedicationAdministration(BaseModel):
     administered_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="medications_administered")
     status = models.CharField(max_length=20, choices=AdministrationStatus.choices, default=AdministrationStatus.GIVEN)
     notes = models.CharField(max_length=255, blank=True)
+    batch = models.ForeignKey("api.MedicineBatch", null=True, blank=True, on_delete=models.SET_NULL, related_name="inpatient_administrations")  # NEW
+    invoice = models.ForeignKey("api.Invoice", null=True, blank=True, on_delete=models.SET_NULL, related_name="inpatient_administrations")  # NEW
     administered_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
