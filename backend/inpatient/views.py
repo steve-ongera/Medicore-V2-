@@ -199,26 +199,43 @@ class AdmissionViewSet(BaseModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="billing")
     def billing(self, request, pk=None):
-        """
-        Consolidated bill for this admission: bed charges, inpatient medication
-        administrations, and any lab/radiology/pharmacy invoices raised against
-        the same Visit during this stay. Mirrors PaymentViewSet.receipt /
-        OTCSaleViewSet.receipt in shape — a read-only aggregation, nothing here
-        writes to Invoice/Payment.
-        """
         admission = self.get_object()
 
         if not admission.visit:
-            return Response({
-                "admission_number": admission.admission_number,
-                "patient_name": admission.patient.full_name,
-                "has_visit": False,
-                "invoices": [],
-                "breakdown": {},
-                "grand_total": "0.00",
-                "amount_paid": "0.00",
-                "balance": "0.00",
-            })
+            from api.models import Department, ConsultationType, VisitStatus
+
+            with transaction.atomic():
+                inpatient_dept, _ = Department.objects.get_or_create(
+                    name="Inpatient Admission",
+                    defaults={
+                        "consultation_fee": 0,
+                        "description": "Auto-created department for direct inpatient admissions without a prior OPD visit.",
+                    },
+                )
+                visit = Visit.objects.create(
+                    patient=admission.patient,
+                    department=inpatient_dept,
+                    doctor=admission.admitting_doctor,
+                    consultation_type=ConsultationType.OTHER,
+                    status=VisitStatus.IN_CONSULTATION,
+                    registered_by=admission.admitted_by,
+                )
+                admission.visit = visit
+                admission.save(update_fields=["visit"])
+
+                # Backfill any bed charges / medication invoices this admission
+                # already accumulated while it had no visit, so they retroactively
+                # show up in this bill instead of being orphaned.
+                for charge in BedCharge.objects.filter(admission=admission).select_related("invoice"):
+                    if charge.invoice and not charge.invoice.visit:
+                        charge.invoice.visit = visit
+                        charge.invoice.save(update_fields=["visit"])
+                for admin_record in MedicationAdministration.objects.filter(
+                    medication_order__admission=admission
+                ).select_related("invoice"):
+                    if admin_record.invoice and not admin_record.invoice.visit:
+                        admin_record.invoice.visit = visit
+                        admin_record.invoice.save(update_fields=["visit"])
 
         invoices = Invoice.objects.filter(visit=admission.visit).order_by("created_at")
 
