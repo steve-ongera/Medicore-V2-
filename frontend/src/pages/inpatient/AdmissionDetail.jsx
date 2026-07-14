@@ -14,6 +14,13 @@ import {
   createMedicationOrder,
   discontinueMedicationOrder,
   recordMedicationAdministration,
+  getLabTestCatalog,
+  getRadiologyTestCatalog,
+  orderLabForAdmission,
+  orderRadiologyForAdmission,
+  getProcedureCatalog,
+  orderProcedureForAdmission,
+  completeProcedure,
 } from "../../services/api";
 
 export default function AdmissionDetail() {
@@ -51,11 +58,24 @@ export default function AdmissionDetail() {
   const [dischargeType, setDischargeType] = useState("NORMAL");
   const [dischargeSummary, setDischargeSummary] = useState("");
 
+  // Lab / Radiology / Procedure ordering
+  const [labTests, setLabTests] = useState([]);
+  const [selectedLabTest, setSelectedLabTest] = useState("");
+  const [radiologyTests, setRadiologyTests] = useState([]);
+  const [selectedRadiologyTest, setSelectedRadiologyTest] = useState("");
+  const [procedureCatalog, setProcedureCatalog] = useState([]);
+  const [selectedProcedure, setSelectedProcedure] = useState("");
+  const [procedureNotes, setProcedureNotes] = useState("");
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+
   useEffect(() => {
     loadAdmission();
     loadBilling();
     loadWards();
     loadMedicines();
+    loadLabTests();
+    loadRadiologyTests();
+    loadProcedureCatalog();
   }, [id]);
 
   const loadAdmission = async () => {
@@ -96,6 +116,33 @@ export default function AdmissionDetail() {
     try {
       const data = await getMedicines();
       setMedicines(data.results ?? data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const loadLabTests = async () => {
+    try {
+      const data = await getLabTestCatalog();
+      setLabTests(data.results ?? data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const loadRadiologyTests = async () => {
+    try {
+      const data = await getRadiologyTestCatalog();
+      setRadiologyTests(data.results ?? data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const loadProcedureCatalog = async () => {
+    try {
+      const data = await getProcedureCatalog();
+      setProcedureCatalog(data.results ?? data);
     } catch (err) {
       setError(err.message);
     }
@@ -210,6 +257,64 @@ export default function AdmissionDetail() {
     }
   };
 
+  const handleOrderLab = async (e) => {
+    e.preventDefault();
+    if (!selectedLabTest) return;
+    setOrderSubmitting(true);
+    try {
+      await orderLabForAdmission(id, { test: selectedLabTest });
+      setSelectedLabTest("");
+      loadAdmission();
+      loadBilling();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
+  const handleOrderRadiology = async (e) => {
+    e.preventDefault();
+    if (!selectedRadiologyTest) return;
+    setOrderSubmitting(true);
+    try {
+      await orderRadiologyForAdmission(id, { test: selectedRadiologyTest });
+      setSelectedRadiologyTest("");
+      loadAdmission();
+      loadBilling();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
+  const handleOrderProcedure = async (e) => {
+    e.preventDefault();
+    if (!selectedProcedure) return;
+    setOrderSubmitting(true);
+    try {
+      await orderProcedureForAdmission(id, { procedure: selectedProcedure, notes: procedureNotes });
+      setSelectedProcedure("");
+      setProcedureNotes("");
+      loadAdmission();
+      loadBilling();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
+  const handleCompleteProcedure = async (procId) => {
+    try {
+      await completeProcedure(procId);
+      loadAdmission();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const goToBillingPayment = () => {
     const unpaidInvoice = billing?.invoices?.find((inv) => Number(inv.balance) > 0);
     if (unpaidInvoice) {
@@ -251,6 +356,9 @@ export default function AdmissionDetail() {
     { id: "nursing", label: "Nursing Notes", icon: "bi-file-text" },
     { id: "vitals", label: "Vitals", icon: "bi-heart-pulse" },
     { id: "medications", label: "Medications", icon: "bi-capsule" },
+    { id: "lab", label: "Lab Requests", icon: "bi-droplet-half" },
+    { id: "radiology", label: "Radiology Requests", icon: "bi-camera" },
+    { id: "procedures", label: "Procedures", icon: "bi-scissors" },
     { id: "transfers", label: "Bed Transfers", icon: "bi-arrow-left-right" },
   ];
 
@@ -264,7 +372,14 @@ export default function AdmissionDetail() {
       "PAID": "badge-success",
       "PARTIAL": "badge-warning",
       "UNPAID": "badge-danger",
-      "CANCELLED": "badge-neutral"
+      "CANCELLED": "badge-neutral",
+      "COMPLETED": "badge-success",
+      "REPORTED": "badge-success",
+      "ORDERED": "badge-warning",
+      "PENDING": "badge-warning",
+      "COLLECTED": "badge-info",
+      "PROCESSING": "badge-info",
+      "DONE": "badge-info",
     };
     return statusMap[status] || "badge-neutral";
   };
@@ -797,6 +912,218 @@ export default function AdmissionDetail() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Lab Requests Tab */}
+          {activeTab === "lab" && (
+            <div>
+              {isActive && (
+                <form onSubmit={handleOrderLab} style={{ marginBottom: "var(--space-4)" }}>
+                  <div className="field-row">
+                    <div className="field" style={{ flex: 1 }}>
+                      <label className="field-label">Lab Test</label>
+                      <select className="select" value={selectedLabTest} onChange={(e) => setSelectedLabTest(e.target.value)} required>
+                        <option value="">Select lab test</option>
+                        {labTests.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name} (KES {t.price})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                      <button type="submit" className="btn btn-primary" disabled={orderSubmitting}>
+                        <i className="bi bi-plus-circle me-2"></i> Order Lab Test
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+              {(admission.lab_orders || []).length === 0 ? (
+                <div className="text-sm text-muted text-center" style={{ padding: "var(--space-6)" }}>
+                  No lab requests for this admission
+                </div>
+              ) : (
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Test</th>
+                        <th className="cell-numeric">Price</th>
+                        <th>Status</th>
+                        <th>Ordered</th>
+                        <th>Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(admission.lab_orders || []).map((o) => (
+                        <tr key={o.id}>
+                          <td className="cell-primary">{o.test_name}</td>
+                          <td className="cell-numeric">KES {o.test_price}</td>
+                          <td>
+                            <span className={`badge ${getStatusBadge(o.status)}`}>
+                              <span className="badge-dot"></span>
+                              {o.status}
+                            </span>
+                          </td>
+                          <td>{new Date(o.ordered_at).toLocaleString()}</td>
+                          <td>
+                            {o.result ? (
+                              <div>
+                                {o.result.result_text && <div className="text-sm">{o.result.result_text}</div>}
+                                {o.result.result_file && (
+                                  <a href={o.result.result_file} target="_blank" rel="noreferrer">
+                                    <i className="bi bi-file-earmark-medical me-1"></i> View File
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted">Pending</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Radiology Requests Tab */}
+          {activeTab === "radiology" && (
+            <div>
+              {isActive && (
+                <form onSubmit={handleOrderRadiology} style={{ marginBottom: "var(--space-4)" }}>
+                  <div className="field-row">
+                    <div className="field" style={{ flex: 1 }}>
+                      <label className="field-label">Radiology Test</label>
+                      <select className="select" value={selectedRadiologyTest} onChange={(e) => setSelectedRadiologyTest(e.target.value)} required>
+                        <option value="">Select radiology test</option>
+                        {radiologyTests.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name} (KES {t.price})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                      <button type="submit" className="btn btn-primary" disabled={orderSubmitting}>
+                        <i className="bi bi-plus-circle me-2"></i> Order Radiology
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+              {(admission.radiology_orders || []).length === 0 ? (
+                <div className="text-sm text-muted text-center" style={{ padding: "var(--space-6)" }}>
+                  No radiology requests for this admission
+                </div>
+              ) : (
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Test</th>
+                        <th className="cell-numeric">Price</th>
+                        <th>Status</th>
+                        <th>Ordered</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(admission.radiology_orders || []).map((o) => (
+                        <tr key={o.id}>
+                          <td className="cell-primary">{o.test_name}</td>
+                          <td className="cell-numeric">KES {o.test_price}</td>
+                          <td>
+                            <span className={`badge ${getStatusBadge(o.status)}`}>
+                              <span className="badge-dot"></span>
+                              {o.status}
+                            </span>
+                          </td>
+                          <td>{new Date(o.ordered_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Procedures Tab */}
+          {activeTab === "procedures" && (
+            <div>
+              {isActive && (
+                <form onSubmit={handleOrderProcedure} style={{ marginBottom: "var(--space-4)" }}>
+                  <div className="field-row">
+                    <div className="field" style={{ flex: 1 }}>
+                      <label className="field-label">Procedure</label>
+                      <select className="select" value={selectedProcedure} onChange={(e) => setSelectedProcedure(e.target.value)} required>
+                        <option value="">Select procedure</option>
+                        {procedureCatalog.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name} (KES {p.price})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label className="field-label">Notes</label>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Optional notes"
+                        value={procedureNotes}
+                        onChange={(e) => setProcedureNotes(e.target.value)}
+                      />
+                    </div>
+                    <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                      <button type="submit" className="btn btn-primary" disabled={orderSubmitting}>
+                        <i className="bi bi-plus-circle me-2"></i> Order Procedure
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+              {(admission.procedures || []).length === 0 ? (
+                <div className="text-sm text-muted text-center" style={{ padding: "var(--space-6)" }}>
+                  No procedures recorded for this admission
+                </div>
+              ) : (
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Procedure</th>
+                        <th className="cell-numeric">Price</th>
+                        <th>Notes</th>
+                        <th>Status</th>
+                        <th>Ordered</th>
+                        <th className="cell-actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(admission.procedures || []).map((p) => (
+                        <tr key={p.id}>
+                          <td className="cell-primary">{p.procedure_name}</td>
+                          <td className="cell-numeric">KES {p.procedure_price}</td>
+                          <td>{p.notes || "—"}</td>
+                          <td>
+                            <span className={`badge ${getStatusBadge(p.status)}`}>
+                              <span className="badge-dot"></span>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td>{new Date(p.ordered_at).toLocaleString()}</td>
+                          <td className="cell-actions">
+                            {isActive && p.status === "ORDERED" && (
+                              <button className="btn btn-success btn-sm" onClick={() => handleCompleteProcedure(p.id)}>
+                                <i className="bi bi-check me-1"></i> Complete
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

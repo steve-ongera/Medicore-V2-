@@ -312,6 +312,15 @@ export const recordMedicationAdministration = (payload) => unwrap(client.post("/
 export const getBedCharges = (params) => unwrap(client.get(`/bed-charges/${qs(params)}`));
 export const generateTodaysBedCharges = () => unwrap(client.post("/bed-charges/generate-today/"));
 
+
+export const orderLabForAdmission = (admissionId, payload) => unwrap(client.post(`/admissions/${admissionId}/order-lab/`, payload));
+export const orderRadiologyForAdmission = (admissionId, payload) => unwrap(client.post(`/admissions/${admissionId}/order-radiology/`, payload));
+export const orderProcedureForAdmission = (admissionId, payload) => unwrap(client.post(`/admissions/${admissionId}/order-procedure/`, payload));
+
+export const getProcedureCatalog = (params) => unwrap(client.get(`/procedure-catalog/${qs(params)}`));
+export const getInpatientProcedures = (params) => unwrap(client.get(`/inpatient-procedures/${qs(params)}`));
+export const completeProcedure = (id) => unwrap(client.post(`/inpatient-procedures/${id}/complete/`));
+
 // ---------------------------------------------------------------------------
 // Helper: build multipart FormData for endpoints that accept file uploads
 // ---------------------------------------------------------------------------
