@@ -45,14 +45,14 @@ export default function WardBoard() {
         <div className="text-danger font-semibold">Error loading ward data</div>
         <p className="text-sm text-muted" style={{ marginTop: "var(--space-2)" }}>{error}</p>
         <button className="btn btn-primary mt-4" onClick={loadOccupancy}>
-          <i className="bi bi-arrow-clockwise"></i> Retry
+          <i className="bi bi-arrow-clockwise me-2"></i> Retry
         </button>
       </div>
     );
   }
 
   return (
-    <div className="app-content">
+    <>
       <div className="page-header">
         <div>
           <div className="page-eyebrow">Facility Management</div>
@@ -61,7 +61,7 @@ export default function WardBoard() {
         </div>
         <div className="page-header__actions">
           <button className="btn btn-secondary" onClick={loadOccupancy}>
-            <i className="bi bi-arrow-clockwise"></i>
+            <i className="bi bi-arrow-clockwise me-2"></i>
             Refresh
           </button>
         </div>
@@ -87,7 +87,7 @@ export default function WardBoard() {
           </div>
           <div className="stat-card__value">{totalOccupied}</div>
           <div className="stat-card__delta is-up">
-            <i className="bi bi-arrow-up"></i> {occupancyRate}% occupancy
+            <i className="bi bi-arrow-up me-1"></i> {occupancyRate}% occupancy
           </div>
         </div>
 
@@ -114,10 +114,10 @@ export default function WardBoard() {
         </div>
       </div>
 
-      <div className="table-wrap">
-        <div className="table-toolbar">
-          <div className="table-toolbar__filters">
-            <span className="text-sm text-muted">
+      <div className="card">
+        <div className="card-header">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-tertiary text-sm">
               {wards.length} ward{wards.length !== 1 ? "s" : ""} configured
             </span>
           </div>
@@ -129,92 +129,98 @@ export default function WardBoard() {
           </div>
         </div>
 
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Ward</th>
-                <th>Type</th>
-                <th className="cell-numeric">Capacity</th>
-                <th className="cell-numeric">Occupied</th>
-                <th className="cell-numeric">Available</th>
-                <th className="cell-numeric">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wards.map((w) => {
-                const occupancyPercent = w.capacity > 0 
-                  ? Math.round((w.occupied / w.capacity) * 100) 
-                  : 0;
-                
-                let statusBadge = "badge-success";
-                let statusLabel = "Available";
-                if (occupancyPercent >= 90) {
-                  statusBadge = "badge-danger";
-                  statusLabel = "Critical";
-                } else if (occupancyPercent >= 70) {
-                  statusBadge = "badge-warning";
-                  statusLabel = "High";
-                } else if (occupancyPercent >= 30) {
-                  statusBadge = "badge-info";
-                  statusLabel = "Moderate";
-                }
+        <div className="card-body p-0">
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Ward</th>
+                  <th>Type</th>
+                  <th className="cell-numeric">Capacity</th>
+                  <th className="cell-numeric">Occupied</th>
+                  <th className="cell-numeric">Available</th>
+                  <th className="cell-numeric">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wards.map((w) => {
+                  const occupancyPercent = w.capacity > 0 
+                    ? Math.round((w.occupied / w.capacity) * 100) 
+                    : 0;
+                  
+                  let statusBadge = "badge-success";
+                  let statusLabel = "Available";
+                  if (occupancyPercent >= 90) {
+                    statusBadge = "badge-danger";
+                    statusLabel = "Critical";
+                  } else if (occupancyPercent >= 70) {
+                    statusBadge = "badge-warning";
+                    statusLabel = "High";
+                  } else if (occupancyPercent >= 30) {
+                    statusBadge = "badge-info";
+                    statusLabel = "Moderate";
+                  }
 
-                return (
-                  <tr key={w.id}>
-                    <td className="cell-primary">{w.name}</td>
-                    <td>{w.ward_type}</td>
-                    <td className="cell-numeric">{w.capacity}</td>
-                    <td className="cell-numeric">{w.occupied}</td>
-                    <td className="cell-numeric">{w.available}</td>
-                    <td>
-                      <span className={`badge ${statusBadge}`}>
-                        <span className="badge-dot"></span>
-                        {statusLabel} ({occupancyPercent}%)
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={w.id}>
+                      <td className="cell-primary">{w.name}</td>
+                      <td>{w.ward_type}</td>
+                      <td className="cell-numeric">{w.capacity}</td>
+                      <td className="cell-numeric">{w.occupied}</td>
+                      <td className="cell-numeric">{w.available}</td>
+                      <td>
+                        <span className={`badge ${statusBadge}`}>
+                          <span className="badge-dot"></span>
+                          {statusLabel} ({occupancyPercent}%)
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {wards.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-state__icon">
+                <i className="bi bi-building"></i>
+              </div>
+              <h3 className="empty-state__title">No wards configured</h3>
+              <p className="empty-state__desc">
+                Start by adding wards to track bed occupancy across your facility.
+              </p>
+              <button className="btn btn-primary">
+                <i className="bi bi-plus-circle me-2"></i> Add Ward
+              </button>
+            </div>
+          )}
         </div>
 
-        {wards.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-state__icon">
-              <i className="bi bi-building"></i>
+        {wards.length > 0 && (
+          <div className="card-footer">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-tertiary text-sm">
+                Showing {wards.length} ward{wards.length !== 1 ? "s" : ""}
+              </span>
             </div>
-            <h3 className="empty-state__title">No wards configured</h3>
-            <p className="empty-state__desc">
-              Start by adding wards to track bed occupancy across your facility.
-            </p>
-            <button className="btn btn-primary">
-              <i className="bi bi-plus-circle"></i> Add Ward
-            </button>
+            <div className="flex gap-2">
+              <span className="badge badge-success">
+                <span className="badge-dot"></span>
+                Available
+              </span>
+              <span className="badge badge-warning">
+                <span className="badge-dot"></span>
+                High occupancy
+              </span>
+              <span className="badge badge-danger">
+                <span className="badge-dot"></span>
+                Critical
+              </span>
+            </div>
           </div>
         )}
-
-        <div className="table-footer">
-          <span className="table-footer__meta">
-            Showing {wards.length} ward{wards.length !== 1 ? "s" : ""}
-          </span>
-          <div className="flex gap-2">
-            <span className="badge badge-success">
-              <span className="badge-dot"></span>
-              Available
-            </span>
-            <span className="badge badge-warning">
-              <span className="badge-dot"></span>
-              High occupancy
-            </span>
-            <span className="badge badge-danger">
-              <span className="badge-dot"></span>
-              Critical
-            </span>
-          </div>
-        </div>
       </div>
-    </div>
+    </>
   );
 }

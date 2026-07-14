@@ -234,7 +234,7 @@ export default function AdmissionDetail() {
         <div className="text-danger font-semibold">Error loading admission</div>
         <p className="text-sm text-muted" style={{ marginTop: "var(--space-2)" }}>{error}</p>
         <button className="btn btn-primary mt-4" onClick={() => navigate("/inpatient/admissions")}>
-          <i className="bi bi-arrow-left"></i> Back to Admissions
+          <i className="bi bi-arrow-left me-2"></i> Back to Admissions
         </button>
       </div>
     );
@@ -270,7 +270,7 @@ export default function AdmissionDetail() {
   };
 
   return (
-    <div className="app-content">
+    <>
       <div className="page-header">
         <div>
           <div className="page-eyebrow">Inpatient Management</div>
@@ -281,10 +281,10 @@ export default function AdmissionDetail() {
         </div>
         <div className="page-header__actions">
           <button className="btn btn-secondary" onClick={() => navigate("/inpatient/admissions")}>
-            <i className="bi bi-arrow-left"></i> Back
+            <i className="bi bi-arrow-left me-2"></i> Back
           </button>
           <button className="btn btn-secondary" onClick={loadAdmission}>
-            <i className="bi bi-arrow-clockwise"></i> Refresh
+            <i className="bi bi-arrow-clockwise me-2"></i> Refresh
           </button>
         </div>
       </div>
@@ -293,7 +293,7 @@ export default function AdmissionDetail() {
         <div className="card" style={{ marginBottom: "var(--space-4)", borderColor: "var(--danger)", background: "var(--danger-soft)" }}>
           <div className="card-body">
             <div className="text-danger">
-              <i className="bi bi-exclamation-circle"></i> {error}
+              <i className="bi bi-exclamation-circle me-2"></i> {error}
             </div>
           </div>
         </div>
@@ -309,7 +309,7 @@ export default function AdmissionDetail() {
               <div className="patient-header__name">{admission.patient_name}</div>
               <div className="patient-header__sub">
                 <span className="patient-header__id">
-                  <i className="bi bi-hash"></i> {admission.hospital_number}
+                  <i className="bi bi-hash me-1"></i> {admission.hospital_number}
                 </span>
                 <span>•</span>
                 <span>Ward: {admission.ward_name}</span>
@@ -324,7 +324,7 @@ export default function AdmissionDetail() {
             </div>
             <div className="patient-header__actions">
               <span className="text-sm text-muted">
-                <i className="bi bi-clock"></i> LOS: {admission.length_of_stay_days} days
+                <i className="bi bi-clock me-1"></i> LOS: {admission.length_of_stay_days} days
               </span>
             </div>
           </div>
@@ -371,7 +371,7 @@ export default function AdmissionDetail() {
                 className={`tabs__item ${activeTab === tab.id ? "is-active" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <i className={`bi ${tab.icon}`}></i> {tab.label}
+                <i className={`bi ${tab.icon} me-1`}></i> {tab.label}
               </button>
             ))}
           </div>
@@ -428,7 +428,7 @@ export default function AdmissionDetail() {
                 </div>
               ) : !billing?.has_visit ? (
                 <div className="text-sm text-muted text-center" style={{ padding: "var(--space-6)" }}>
-                  <i className="bi bi-info-circle"></i> No billing data yet. Charges will appear once bed charges or orders are generated.
+                  <i className="bi bi-info-circle me-1"></i> No billing data yet. Charges will appear once bed charges or orders are generated.
                 </div>
               ) : (
                 <div>
@@ -527,7 +527,7 @@ export default function AdmissionDetail() {
                       onClick={goToBillingPayment}
                       disabled={Number(billing.balance) <= 0}
                     >
-                      <i className="bi bi-credit-card"></i> Go to Billing / Take Payment
+                      <i className="bi bi-credit-card me-2"></i> Go to Billing / Take Payment
                     </button>
                   </div>
                 </div>
@@ -560,7 +560,7 @@ export default function AdmissionDetail() {
                     />
                   </div>
                   <button type="submit" className="btn btn-primary">
-                    <i className="bi bi-plus-circle"></i> Add Ward Round
+                    <i className="bi bi-plus-circle me-2"></i> Add Ward Round
                   </button>
                 </form>
               )}
@@ -610,7 +610,7 @@ export default function AdmissionDetail() {
                     </div>
                   </div>
                   <button type="submit" className="btn btn-primary">
-                    <i className="bi bi-plus-circle"></i> Add Nursing Note
+                    <i className="bi bi-plus-circle me-2"></i> Add Nursing Note
                   </button>
                 </form>
               )}
@@ -681,7 +681,7 @@ export default function AdmissionDetail() {
                     </div>
                   </div>
                   <button type="submit" className="btn btn-primary">
-                    <i className="bi bi-floppy"></i> Save Vitals
+                    <i className="bi bi-floppy me-2"></i> Save Vitals
                   </button>
                 </form>
               )}
@@ -761,7 +761,7 @@ export default function AdmissionDetail() {
                     </div>
                   </div>
                   <button type="submit" className="btn btn-primary">
-                    <i className="bi bi-plus-circle"></i> Add Medication Order
+                    <i className="bi bi-plus-circle me-2"></i> Add Medication Order
                   </button>
                 </form>
               )}
@@ -787,10 +787,10 @@ export default function AdmissionDetail() {
                         {isActive && m.is_active && (
                           <>
                             <button className="btn btn-success btn-sm" onClick={() => handleAdministerMed(m.id)}>
-                              <i className="bi bi-check"></i> Give
+                              <i className="bi bi-check me-1"></i> Give
                             </button>
                             <button className="btn btn-danger-outline btn-sm" onClick={() => handleDiscontinueMed(m.id)}>
-                              <i className="bi bi-x"></i> DC
+                              <i className="bi bi-x me-1"></i> DC
                             </button>
                           </>
                         )}
@@ -814,7 +814,7 @@ export default function AdmissionDetail() {
                   {(admission.bed_transfers || []).map((t) => (
                     <div key={t.id} className="timeline-item">
                       <div className="timeline-item__title">
-                        <i className="bi bi-arrow-right"></i> {t.from_bed_label || "N/A"} → {t.to_bed_label}
+                        <i className="bi bi-arrow-right me-1"></i> {t.from_bed_label || "N/A"} → {t.to_bed_label}
                       </div>
                       <div className="timeline-item__time">
                         {new Date(t.transferred_at).toLocaleString()}
@@ -856,7 +856,7 @@ export default function AdmissionDetail() {
                   </div>
                 </div>
                 <button type="submit" className="btn btn-primary">
-                  <i className="bi bi-arrows-move"></i> Transfer Bed
+                  <i className="bi bi-arrows-move me-2"></i> Transfer Bed
                 </button>
               </form>
             </div>
@@ -887,13 +887,13 @@ export default function AdmissionDetail() {
                   />
                 </div>
                 <button type="submit" className="btn btn-danger">
-                  <i className="bi bi-door-open"></i> Discharge Patient
+                  <i className="bi bi-door-open me-2"></i> Discharge Patient
                 </button>
               </form>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
