@@ -244,6 +244,7 @@ class InvoiceSourceType(models.TextChoices):
     RADIOLOGY = "RADIOLOGY", "Radiology"
     PHARMACY = "PHARMACY", "Pharmacy"
     INPATIENT = "INPATIENT", "Inpatient"
+    PROCEDURE = "PROCEDURE", "Procedure"
 
 
 class InvoiceStatus(models.TextChoices):
