@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { getPayments, createPayment, getInvoices } from "../../services/api";
+import { getPayments, createPayment, getInvoices, getInvoice } from "../../services/api";
 import DataTable from "../../components/DataTable";
 import SearchBar from "../../components/SearchBar";
 import Pagination from "../../components/Pagination";
@@ -61,8 +61,32 @@ export default function Payments() {
 
   const loadInvoices = async () => {
     try {
-      const data = await getInvoices({ page: 1, page_size: 100, status: "UNPAID" });
-      setInvoices(data.results || []);
+      // Don't filter by status here — an invoice can be UNPAID or PARTIAL
+      // and still have an outstanding balance (e.g. after a partial payment,
+      // or a bed charge / lab / procedure invoice raised mid-stay). Filtering
+      // to UNPAID only was silently hiding any invoice that had already
+      // received a partial payment from this dropdown.
+      const data = await getInvoices({ page: 1, page_size: 200 });
+      let results = data.results || [];
+      const outstanding = results.filter((inv) => Number(inv.balance) > 0);
+
+      // If we arrived via ?invoice=xxx (e.g. from Inpatient Billing "Take
+      // Payment" button) and that invoice isn't in the first page of
+      // results — or was already fully paid off by the time this loads —
+      // fetch it directly so the dropdown always has a matching option.
+      if (invoiceIdParam && !outstanding.some((inv) => inv.id === invoiceIdParam)) {
+        try {
+          const specific = await getInvoice(invoiceIdParam);
+          if (Number(specific.balance) > 0) {
+            outstanding.unshift(specific);
+          }
+        } catch {
+          // Invoice may not exist / already fully paid — safe to ignore,
+          // the select will just show no pre-selected match.
+        }
+      }
+
+      setInvoices(outstanding);
     } catch (err) {
       console.error("Failed to load invoices:", err);
     }
@@ -293,7 +317,7 @@ export default function Payments() {
               <option value="">Select an invoice</option>
               {invoices.map((inv) => (
                 <option key={inv.id} value={inv.id}>
-                  {inv.invoice_number} - {inv.patient_name} (Balance: {formatCurrency(inv.balance)})
+                  {inv.invoice_number} - {inv.patient_name} ({inv.source_type}) - Balance: {formatCurrency(inv.balance)}
                 </option>
               ))}
             </select>
