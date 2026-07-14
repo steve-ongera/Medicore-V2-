@@ -2,13 +2,9 @@
 Signals to keep inpatient billing in sync automatically, without any
 frontend involvement.
 
-- On admission creation: immediately raise the first day's bed charge, so
-  the invoice exists right away instead of waiting for the daily job
-  (which could be up to 24h away if a patient is admitted right after
-  that job already ran for the day).
-- Medication billing does NOT need a signal here — it already invoices
-  synchronously inside MedicationAdministrationViewSet.perform_create the
-  moment a dose is marked "Given" from the existing frontend.
+On admission creation: immediately raise the first day's bed charge, using
+ensure_admission_visit so the invoice is always linked to a Visit from the
+moment it's created — never orphaned with visit=None.
 """
 import logging
 from datetime import date
@@ -28,16 +24,22 @@ def charge_first_day_on_admission(sender, instance, created, **kwargs):
 
     from api.models import Invoice, InvoiceSourceType
     from .models import BedCharge
+    from .services import ensure_admission_visit
 
     today = date.today()
     if BedCharge.objects.filter(admission=instance, charge_date=today).exists():
         return
 
     try:
+        # ensure_admission_visit may call instance.save(update_fields=["visit"]).
+        # That re-triggers this same signal with created=False, which the
+        # guard above short-circuits — no infinite loop.
+        visit = ensure_admission_visit(instance)
+
         amount = instance.bed.daily_rate
         invoice = Invoice.objects.create(
             patient=instance.patient,
-            visit=instance.visit,
+            visit=visit,
             source_type=InvoiceSourceType.INPATIENT,
             description=f"Bed Charge - {instance.bed.ward.name} Bed {instance.bed.bed_number} ({today})",
             amount=amount,
