@@ -1,11 +1,7 @@
 # Medicore V2  HMIS Backend — Hospital Management Information System
 
-A single-app Django REST Framework backend powering the full patient journey:
-**Registration → Billing → Queue → Triage → Consultation → Lab/Radiology → Pharmacy → Reports.**
+A comprehensive Hospital Management Information System (HMIS) built as a **single-app Django REST Framework backend** that manages the complete patient journey—from **registration, billing, queue management, triage, consultation, laboratory and radiology services, pharmacy, to reporting**. Developed with **Python 3.13, Django 5, Django REST Framework, and PostgreSQL**, the system features **JWT authentication**, **Role-Based Access Control (RBAC)**, **soft deletes**, **audit logging**, **QR-coded receipts**, and **OpenAPI/Swagger documentation**. Designed with simplicity and maintainability in mind, all backend functionality is contained within a single Django application (`api`), providing a secure, scalable, and efficient foundation for modern healthcare management.
 
-Built with Python 3.13, Django 5, DRF, PostgreSQL, JWT auth, RBAC, soft deletes, audit
-logging, QR-coded receipts, and OpenAPI/Swagger docs — all inside **one Django app (`api`)**
-for simplicity, as requested.
 
 ---
 
