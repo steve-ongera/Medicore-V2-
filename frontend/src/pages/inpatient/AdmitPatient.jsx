@@ -117,7 +117,7 @@ export default function AdmitPatient() {
   };
 
   return (
-    <div className="app-content">
+    <>
       <div className="page-header">
         <div>
           <div className="page-eyebrow">Inpatient Management</div>
@@ -130,7 +130,7 @@ export default function AdmitPatient() {
             className="btn btn-secondary"
             onClick={() => navigate("/inpatient/admissions")}
           >
-            <i className="bi bi-arrow-left"></i>
+            <i className="bi bi-arrow-left me-2"></i>
             Back to Admissions
           </button>
         </div>
@@ -140,7 +140,7 @@ export default function AdmitPatient() {
         <div className="card" style={{ marginBottom: "var(--space-4)", borderColor: "var(--danger)", background: "var(--danger-soft)" }}>
           <div className="card-body">
             <div className="text-danger">
-              <i className="bi bi-exclamation-circle"></i> {error}
+              <i className="bi bi-exclamation-circle me-2"></i> {error}
             </div>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function AdmitPatient() {
       <div className="card" style={{ marginBottom: "var(--space-6)" }}>
         <div className="card-header">
           <h5 className="card-title">
-            <i className="bi bi-search"></i> Find Patient
+            <i className="bi bi-search me-2"></i> Find Patient
           </h5>
         </div>
         <div className="card-body">
@@ -174,7 +174,7 @@ export default function AdmitPatient() {
                     </>
                   ) : (
                     <>
-                      <i className="bi bi-search"></i> Search
+                      <i className="bi bi-search me-2"></i> Search
                     </>
                   )}
                 </button>
@@ -209,7 +209,7 @@ export default function AdmitPatient() {
                             className="btn btn-primary btn-sm"
                             onClick={() => setSelectedPatient(p)}
                           >
-                            <i className="bi bi-check"></i> Select
+                            <i className="bi bi-check me-1"></i> Select
                           </button>
                         </td>
                       </tr>
@@ -241,7 +241,7 @@ export default function AdmitPatient() {
               </div>
               <div>
                 <div className="text-sm text-success font-semibold">
-                  <i className="bi bi-check-circle"></i> Selected Patient
+                  <i className="bi bi-check-circle me-1"></i> Selected Patient
                 </div>
                 <div className="font-bold">{selectedPatient.full_name}</div>
                 <div className="text-sm text-muted">
@@ -253,7 +253,7 @@ export default function AdmitPatient() {
                 className="btn btn-ghost btn-sm ml-auto"
                 onClick={() => setSelectedPatient(null)}
               >
-                <i className="bi bi-x"></i> Change
+                <i className="bi bi-x me-1"></i> Change
               </button>
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function AdmitPatient() {
       <div className="card">
         <div className="card-header">
           <h5 className="card-title">
-            <i className="bi bi-clipboard-plus"></i> Admission Details
+            <i className="bi bi-clipboard-plus me-2"></i> Admission Details
           </h5>
         </div>
         <div className="card-body">
@@ -391,7 +391,7 @@ export default function AdmitPatient() {
                   </>
                 ) : (
                   <>
-                    <i className="bi bi-hospital"></i> Admit Patient
+                    <i className="bi bi-hospital me-2"></i> Admit Patient
                   </>
                 )}
               </button>
@@ -399,6 +399,6 @@ export default function AdmitPatient() {
           </form>
         </div>
       </div>
-    </div>
+    </>
   );
 }
