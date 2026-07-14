@@ -66,7 +66,7 @@ export default function AdmissionList() {
   }
 
   return (
-    <div className="app-content">
+    <>
       <div className="page-header">
         <div>
           <div className="page-eyebrow">Inpatient Management</div>
@@ -74,10 +74,9 @@ export default function AdmissionList() {
           <p className="page-subtitle">Manage all patient admissions</p>
         </div>
         <div className="page-header__actions">
-          <Link to="/inpatient/admit">
-            <button className="btn btn-primary">
-              <i className="bi bi-person-plus"></i> Admit Patient
-            </button>
+          <Link to="/inpatient/admit" className="btn btn-primary">
+            <i className="bi bi-person-plus me-2"></i>
+            Admit Patient
           </Link>
         </div>
       </div>
@@ -115,7 +114,7 @@ export default function AdmissionList() {
               </div>
               <div className="field" style={{ marginBottom: 0, display: "flex", alignItems: "flex-end" }}>
                 <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
-                  <i className="bi bi-search"></i> Search
+                  <i className="bi bi-search me-2"></i> Search
                 </button>
               </div>
             </div>
@@ -123,10 +122,10 @@ export default function AdmissionList() {
         </div>
       </div>
 
-      <div className="table-wrap">
-        <div className="table-toolbar">
-          <div className="table-toolbar__filters">
-            <span className="text-sm text-muted">
+      <div className="card">
+        <div className="card-header">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-tertiary text-sm">
               {admissions.length} admission{admissions.length !== 1 ? "s" : ""} found
             </span>
             {statusFilter && (
@@ -138,92 +137,97 @@ export default function AdmissionList() {
           </div>
           <div>
             <button className="btn btn-secondary btn-sm" onClick={loadAdmissions}>
-              <i className="bi bi-arrow-clockwise"></i> Refresh
+              <i className="bi bi-arrow-clockwise me-1"></i> Refresh
             </button>
           </div>
         </div>
 
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Admission #</th>
-                <th>Patient</th>
-                <th>Hospital #</th>
-                <th>Ward / Bed</th>
-                <th>Doctor</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Admitted</th>
-                <th className="cell-numeric">LOS (days)</th>
-                <th className="cell-actions"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {admissions.map((a) => (
-                <tr key={a.id}>
-                  <td className="cell-primary">{a.admission_number}</td>
-                  <td>{a.patient_name}</td>
-                  <td className="cell-mono">{a.hospital_number}</td>
-                  <td>{a.ward_name} / {a.bed_number}</td>
-                  <td>{a.attending_doctor_name || "—"}</td>
-                  <td>
-                    <span className="tag">{a.admission_type}</span>
-                  </td>
-                  <td>
-                    <span className={`badge ${getStatusBadge(a.status)}`}>
-                      <span className="badge-dot"></span>
-                      {a.status.replace("_", " ")}
-                    </span>
-                  </td>
-                  <td>{new Date(a.admission_date).toLocaleDateString()}</td>
-                  <td className="cell-numeric">{a.length_of_stay_days || "—"}</td>
-                  <td className="cell-actions">
-                    <Link to={`/inpatient/admissions/${a.id}`}>
-                      <button className="btn btn-secondary btn-sm">
-                        <i className="bi bi-eye"></i> View
-                      </button>
-                    </Link>
-                  </td>
+        <div className="card-body p-0">
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Admission #</th>
+                  <th>Patient</th>
+                  <th>Hospital #</th>
+                  <th>Ward / Bed</th>
+                  <th>Doctor</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Admitted</th>
+                  <th className="cell-numeric">LOS (days)</th>
+                  <th className="cell-actions"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {admissions.map((a) => (
+                  <tr key={a.id}>
+                    <td className="cell-primary">{a.admission_number}</td>
+                    <td>{a.patient_name}</td>
+                    <td className="cell-mono">{a.hospital_number}</td>
+                    <td>{a.ward_name} / {a.bed_number}</td>
+                    <td>{a.attending_doctor_name || "—"}</td>
+                    <td>
+                      <span className="tag">{a.admission_type}</span>
+                    </td>
+                    <td>
+                      <span className={`badge ${getStatusBadge(a.status)}`}>
+                        <span className="badge-dot"></span>
+                        {a.status.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td>{new Date(a.admission_date).toLocaleDateString()}</td>
+                    <td className="cell-numeric">{a.length_of_stay_days || "—"}</td>
+                    <td className="cell-actions">
+                      <Link
+                        to={`/inpatient/admissions/${a.id}`}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <i className="bi bi-eye me-1"></i> View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {!loading && admissions.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-state__icon">
+                <i className="bi bi-hospital"></i>
+              </div>
+              <h3 className="empty-state__title">No admissions found</h3>
+              <p className="empty-state__desc">
+                {search || statusFilter 
+                  ? "No admissions match your search criteria." 
+                  : "Start by admitting a patient to the ward."}
+              </p>
+              {search || statusFilter ? (
+                <button className="btn btn-secondary" onClick={() => {
+                  setSearch("");
+                  setStatusFilter("");
+                }}>
+                  <i className="bi bi-x-circle me-1"></i> Clear filters
+                </button>
+              ) : (
+                <Link to="/inpatient/admit">
+                  <button className="btn btn-primary">
+                    <i className="bi bi-person-plus me-2"></i> Admit Patient
+                  </button>
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
-        {!loading && admissions.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-state__icon">
-              <i className="bi bi-hospital"></i>
-            </div>
-            <h3 className="empty-state__title">No admissions found</h3>
-            <p className="empty-state__desc">
-              {search || statusFilter 
-                ? "No admissions match your search criteria." 
-                : "Start by admitting a patient to the ward."}
-            </p>
-            {search || statusFilter ? (
-              <button className="btn btn-secondary" onClick={() => {
-                setSearch("");
-                setStatusFilter("");
-              }}>
-                <i className="bi bi-x-circle"></i> Clear filters
-              </button>
-            ) : (
-              <Link to="/inpatient/admit">
-                <button className="btn btn-primary">
-                  <i className="bi bi-person-plus"></i> Admit Patient
-                </button>
-              </Link>
-            )}
-          </div>
-        )}
-
         {admissions.length > 0 && (
-          <div className="table-footer">
-            <span className="table-footer__meta">
-              Showing {admissions.length} admission{admissions.length !== 1 ? "s" : ""}
-            </span>
+          <div className="card-footer">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-tertiary text-sm">
+                Showing {admissions.length} admission{admissions.length !== 1 ? "s" : ""}
+              </span>
+            </div>
             <div className="flex gap-2">
               <span className="badge badge-primary">
                 <span className="badge-dot"></span> Admitted
@@ -238,6 +242,6 @@ export default function AdmissionList() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
